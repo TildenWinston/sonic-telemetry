@@ -6,9 +6,18 @@ package gnmi
 import (
 	"crypto/tls"
 	"encoding/json"
+
 	testcert "github.com/Azure/sonic-telemetry/testdata/tls"
 	"github.com/go-redis/redis"
 	"github.com/golang/protobuf/proto"
+
+	"flag"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"reflect"
+	"testing"
+	"time"
 
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/openconfig/gnmi/client"
@@ -19,17 +28,11 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
-	"io/ioutil"
-	"os"
-	"os/exec"
-	"reflect"
-	"testing"
-	"time"
+
 	// Register supported client types.
 	sdc "github.com/Azure/sonic-telemetry/sonic_data_client"
 	sdcfg "github.com/Azure/sonic-telemetry/sonic_db_config"
 	gclient "github.com/jipanyang/gnmi/client/gnmi"
-
 )
 
 var clientTypes = []string{gclient.Type}
@@ -121,7 +124,7 @@ func runTestGet(t *testing.T, ctx context.Context, gClient pb.GNMIClient, pathTa
 		t.Log("err: ", err)
 		t.Fatalf("got return code %v, want %v", gotRetStatus.Code(), wantRetCode)
 	}
-	
+
 	// Check response value
 	if valTest {
 		var gotVal interface{}
@@ -327,7 +330,7 @@ func prepareDb(t *testing.T) {
 	mpi_qname_map := loadConfig(t, "COUNTERS_QUEUE_NAME_MAP", countersQueueNameMapByte)
 	loadDB(t, rclient, mpi_qname_map)
 
-	fileName = "../testdata/COUNTERS:Ethernet68.txt"
+	fileName = "../testdata/COUNTERS-Ethernet68.txt"
 	countersEthernet68Byte, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		t.Fatalf("read file %v err: %v", fileName, err)
@@ -336,7 +339,7 @@ func prepareDb(t *testing.T) {
 	mpi_counter := loadConfig(t, "COUNTERS:oid:0x1000000000039", countersEthernet68Byte)
 	loadDB(t, rclient, mpi_counter)
 
-	fileName = "../testdata/COUNTERS:Ethernet1.txt"
+	fileName = "../testdata/COUNTERS-Ethernet1.txt"
 	countersEthernet1Byte, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		t.Fatalf("read file %v err: %v", fileName, err)
@@ -346,7 +349,7 @@ func prepareDb(t *testing.T) {
 	loadDB(t, rclient, mpi_counter)
 
 	// "Ethernet64:0": "oid:0x1500000000092a"  : queue counter, to work as data noise
-	fileName = "../testdata/COUNTERS:oid:0x1500000000092a.txt"
+	fileName = "../testdata/COUNTERS-oid-0x1500000000092a.txt"
 	counters92aByte, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		t.Fatalf("read file %v err: %v", fileName, err)
@@ -355,7 +358,7 @@ func prepareDb(t *testing.T) {
 	loadDB(t, rclient, mpi_counter)
 
 	// "Ethernet68:1": "oid:0x1500000000091c"  : queue counter, for COUNTERS/Ethernet68/Queue vpath test
-	fileName = "../testdata/COUNTERS:oid:0x1500000000091c.txt"
+	fileName = "../testdata/COUNTERS-oid-0x1500000000091c.txt"
 	countersEeth68_1Byte, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		t.Fatalf("read file %v err: %v", fileName, err)
@@ -389,7 +392,7 @@ func prepareDbTranslib(t *testing.T) {
 	rclient := getRedisClient(t)
 	rclient.FlushDB()
 	rclient.Close()
-	
+
 	//Enable keysapce notification
 	os.Setenv("PATH", "/usr/bin:/sbin:/bin:/usr/local/bin")
 	cmd := exec.Command("redis-cli", "config", "set", "notify-keyspace-events", "KEA")
@@ -512,9 +515,10 @@ func TestGnmiSet(t *testing.T) {
 	s.s.Stop()
 }
 
-
-
 func TestGnmiGet(t *testing.T) {
+	flag.Set("alsologtostderr", "true")
+	//flag.Set("v", "6")
+	flag.Parse()
 	//t.Log("Start server")
 	s := createServer(t)
 	go runServer(t, s)
@@ -542,31 +546,19 @@ func TestGnmiGet(t *testing.T) {
 		t.Fatalf("read file %v err: %v", fileName, err)
 	}
 
-	fileName = "../testdata/COUNTERS:Ethernet68.txt"
+	fileName = "../testdata/COUNTERS-Ethernet68.txt"
 	countersEthernet68Byte, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		t.Fatalf("read file %v err: %v", fileName, err)
 	}
 
-	fileName = "../testdata/COUNTERS:Ethernet68:Pfcwd.txt"
-	countersEthernet68PfcwdByte, err := ioutil.ReadFile(fileName)
-	if err != nil {
-		t.Fatalf("read file %v err: %v", fileName, err)
-	}
-
-	fileName = "../testdata/COUNTERS:Ethernet68:Pfcwd_alias.txt"
-	countersEthernet68PfcwdAliasByte, err := ioutil.ReadFile(fileName)
-	if err != nil {
-		t.Fatalf("read file %v err: %v", fileName, err)
-	}
-
-	fileName = "../testdata/COUNTERS:Ethernet_wildcard_alias.txt"
+	fileName = "../testdata/COUNTERS-Ethernet_wildcard.txt"
 	countersEthernetWildcardByte, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		t.Fatalf("read file %v err: %v", fileName, err)
 	}
 
-	fileName = "../testdata/COUNTERS:Ethernet_wildcard_PFC_7_RX_alias.txt"
+	fileName = "../testdata/COUNTERS-Ethernet_wildcard_PFC_7_RX.txt"
 	countersEthernetWildcardPfcByte, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		t.Fatalf("read file %v err: %v", fileName, err)
@@ -745,56 +737,56 @@ func TestGnmiGetTranslib(t *testing.T) {
 	}{
 
 		//These tests only work on the real switch platform, since they rely on files in the /proc and another running service
-	// 	{
-	// 	desc:       "Get OC Platform",
-	// 	pathTarget: "OC_YANG",
-	// 	textPbPath: `
- //                        elem: <name: "openconfig-platform:components" >
- //                `,
-	// 	wantRetCode: codes.OK,
-	// 	wantRespVal: emptyRespVal,
-	// 	valTest:     false,
-	// },
-	// 	{
-	// 		desc:       "Get OC System State",
-	// 		pathTarget: "OC_YANG",
-	// 		textPbPath: `
- //                        elem: <name: "openconfig-system:system" > elem: <name: "state" >
- //                `,
-	// 		wantRetCode: codes.OK,
-	// 		wantRespVal: emptyRespVal,
-	// 		valTest:     false,
-	// 	},
-	// 	{
-	// 		desc:       "Get OC System CPU",
-	// 		pathTarget: "OC_YANG",
-	// 		textPbPath: `
- //                        elem: <name: "openconfig-system:system" > elem: <name: "cpus" >
- //                `,
-	// 		wantRetCode: codes.OK,
-	// 		wantRespVal: emptyRespVal,
-	// 		valTest:     false,
-	// 	},
-	// 	{
-	// 		desc:       "Get OC System memory",
-	// 		pathTarget: "OC_YANG",
-	// 		textPbPath: `
- //                        elem: <name: "openconfig-system:system" > elem: <name: "memory" >
- //                `,
-	// 		wantRetCode: codes.OK,
-	// 		wantRespVal: emptyRespVal,
-	// 		valTest:     false,
-	// 	},
-	// 	{
-	// 		desc:       "Get OC System processes",
-	// 		pathTarget: "OC_YANG",
-	// 		textPbPath: `
- //                        elem: <name: "openconfig-system:system" > elem: <name: "processes" >
- //                `,
-	// 		wantRetCode: codes.OK,
-	// 		wantRespVal: emptyRespVal,
-	// 		valTest:     false,
-	// 	},
+		// 	{
+		// 	desc:       "Get OC Platform",
+		// 	pathTarget: "OC_YANG",
+		// 	textPbPath: `
+		//                        elem: <name: "openconfig-platform:components" >
+		//                `,
+		// 	wantRetCode: codes.OK,
+		// 	wantRespVal: emptyRespVal,
+		// 	valTest:     false,
+		// },
+		// 	{
+		// 		desc:       "Get OC System State",
+		// 		pathTarget: "OC_YANG",
+		// 		textPbPath: `
+		//                        elem: <name: "openconfig-system:system" > elem: <name: "state" >
+		//                `,
+		// 		wantRetCode: codes.OK,
+		// 		wantRespVal: emptyRespVal,
+		// 		valTest:     false,
+		// 	},
+		// 	{
+		// 		desc:       "Get OC System CPU",
+		// 		pathTarget: "OC_YANG",
+		// 		textPbPath: `
+		//                        elem: <name: "openconfig-system:system" > elem: <name: "cpus" >
+		//                `,
+		// 		wantRetCode: codes.OK,
+		// 		wantRespVal: emptyRespVal,
+		// 		valTest:     false,
+		// 	},
+		// 	{
+		// 		desc:       "Get OC System memory",
+		// 		pathTarget: "OC_YANG",
+		// 		textPbPath: `
+		//                        elem: <name: "openconfig-system:system" > elem: <name: "memory" >
+		//                `,
+		// 		wantRetCode: codes.OK,
+		// 		wantRespVal: emptyRespVal,
+		// 		valTest:     false,
+		// 	},
+		// 	{
+		// 		desc:       "Get OC System processes",
+		// 		pathTarget: "OC_YANG",
+		// 		textPbPath: `
+		//                        elem: <name: "openconfig-system:system" > elem: <name: "processes" >
+		//                `,
+		// 		wantRetCode: codes.OK,
+		// 		wantRespVal: emptyRespVal,
+		// 		valTest:     false,
+		// 	},
 		{
 			desc:       "Get OC Interfaces",
 			pathTarget: "OC_YANG",
@@ -881,7 +873,7 @@ func runTestSubscribe(t *testing.T) {
 	countersPortNameMapJsonUpdate["test_field"] = "test_value"
 
 	// for table key subscription
-	fileName = "../testdata/COUNTERS:Ethernet68.txt"
+	fileName = "../testdata/COUNTERS-Ethernet68.txt"
 	countersEthernet68Byte, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		t.Fatalf("read file %v err: %v", fileName, err)
@@ -991,7 +983,7 @@ func runTestSubscribe(t *testing.T) {
 	var countersEthernetWildQueuesJson interface{}
 	json.Unmarshal(countersEthernetWildQueuesByte, &countersEthernetWildQueuesJson)
 
-	fileName = "../testdata/COUNTERS:Ethernet68:Queues.txt"
+	fileName = "../testdata/COUNTERS-Ethernet68-Queues.txt"
 	countersEthernet68QueuesByte, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		t.Fatalf("read file %v err: %v", fileName, err)
